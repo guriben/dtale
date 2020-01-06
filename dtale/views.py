@@ -897,6 +897,8 @@ def build_chart(data, x, y, group_col=None, agg=None, allow_duplicates=False, **
 
     x_col = str('x')
     y_cols = make_list(y)
+    z_col = kwargs.get('z')
+    z_cols = [] if z_col is None else [z_col]
     if group_col is not None:
         data = data[group_col + [x] + y_cols].sort_values(group_col + [x])
         check_all_nan(data, [x] + y_cols)
@@ -927,10 +929,11 @@ def build_chart(data, x, y, group_col=None, agg=None, allow_duplicates=False, **
             ])
             ret_data['data'][group_val] = data_f.format_lists(grp)
         return ret_data
-    data = data[[x] + y_cols].sort_values(x)
-    check_all_nan(data, [x] + y_cols)
+    sort_cols = [x] + (y_cols if len(z_cols) else [])
+    data = data[[x] + y_cols + z_cols].sort_values(sort_cols)
+    check_all_nan(data, [x] + y_cols + z_cols)
     y_cols = [str(y_col) for y_col in y_cols]
-    data.columns = [x_col] + y_cols
+    data.columns = [x_col] + y_cols + z_cols
     if agg is not None:
         if agg == 'rolling':
             window, comp = map(kwargs.get, ['rolling_win', 'rolling_comp'])
@@ -938,18 +941,22 @@ def build_chart(data, x, y, group_col=None, agg=None, allow_duplicates=False, **
             data = pd.DataFrame({c: getattr(data[c], comp)() for c in y_cols})
             data = data.reset_index()
         else:
-            data = data.groupby(x_col)
-            data = getattr(data[y_cols], agg)().reset_index()
-
-    if not allow_duplicates and any(data[x_col].duplicated()):
+            if len(z_cols):
+                data = data.groupby([x_col] + y_cols)
+                data = getattr(data[z_cols], agg)().reset_index()
+            else:
+                data = data.groupby(x_col)
+                data = getattr(data[y_cols], agg)().reset_index()
+    if not allow_duplicates and any(data[[x_col] + (y_cols if len(z_cols) else [])].duplicated()):
         raise Exception('{} contains duplicates, please specify group or additional filtering'.format(x))
-    if len(data) > 15000:
-        raise Exception('Dataset exceeds 15,000 records, cannot render. Please apply filter...')
+    data_limit = 40000 if len(z_cols) else 15000
+    if len(data) > data_limit:
+        raise Exception('Dataset exceeds {} records, cannot render. Please apply filter...'.format(data_limit))
     data_f, range_f = build_formatters(data)
     ret_data = dict(
         data={str('all'): data_f.format_lists(data)},
-        min={col: fmt(data[col].min(), None) for _, col, fmt in range_f.fmts if col in [x_col] + y_cols},
-        max={col: fmt(data[col].max(), None) for _, col, fmt in range_f.fmts if col in [x_col] + y_cols},
+        min={col: fmt(data[col].min(), None) for _, col, fmt in range_f.fmts if col in [x_col] + y_cols + z_cols},
+        max={col: fmt(data[col].max(), None) for _, col, fmt in range_f.fmts if col in [x_col] + y_cols + z_cols},
     )
     return ret_data
 
@@ -997,7 +1004,8 @@ def get_chart_data(data_id):
         allow_duplicates = get_bool_arg(request, 'allowDupes')
         window = get_int_arg(request, 'rollingWin')
         comp = get_str_arg(request, 'rollingComp')
-        data = build_chart(data, x, y, group_col, agg, allow_duplicates, rolling_win=window, rolling_comp=comp)
+        data = build_chart(data, x, y, group_col, agg, allow_duplicates,
+                           rolling_win=window, rolling_comp=comp, z=get_str_arg(request, 'z'))
         data['success'] = True
         return jsonify(data)
     except BaseException as e:

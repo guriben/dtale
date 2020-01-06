@@ -11,11 +11,14 @@ import { Aggregations } from "./Aggregations";
 import ChartsBody from "./ChartsBody";
 
 function generateChartState(state, { dataId }) {
-  const { group, x, y, query, aggregation, rollingWindow, rollingComputation } = state;
+  const { group, x, y, z, query, aggregation, rollingWindow, rollingComputation } = state;
   if (_.isNull(x) || _.isNull(y)) {
     return { url: null };
   }
   const params = { x: x.value, y: JSON.stringify(_.map(y, "value")), query };
+  if (!_.isNull(z)) {
+    params.z = z.value;
+  }
   if (!_.isNull(group)) {
     params.group = JSON.stringify(_.map(group, "value"));
   }
@@ -40,9 +43,10 @@ function generateChartState(state, { dataId }) {
   return { url: buildURLString(`/dtale/chart-data/${dataId}`, params) };
 }
 
-const baseState = ({ query, x, y, group, aggregation }) => ({
+const baseState = ({ query, x, y, z, group, aggregation }) => ({
   x: x ? { value: x } : null,
   y: y ? _.map(y, y2 => ({ value: y2 })) : null,
+  z: z ? { value: z } : null,
   group: group ? _.map(group, g => ({ value: g })) : null,
   aggregation,
   rollingComputation: null,
@@ -126,9 +130,10 @@ class ReactCharts extends React.Component {
           </div>
         </div>
         <div className="row pt-3 pb-3 charts-filters">
-          <div className="col-auto">{this.renderSelect("X", "x", ["y", "group"])}</div>
-          <div className="col">{this.renderSelect("Y", "y", ["x", "group"], true)}</div>
-          <div className="col">{this.renderSelect("Group", "group", ["x", "y"], true)}</div>
+          <div className="col-auto">{this.renderSelect("X", "x", ["y", "z", "group"])}</div>
+          <div className="col">{this.renderSelect("Y", "y", ["x", "z", "group"], true)}</div>
+          <div className="col">{this.renderSelect("Z", "z", ["x", "y", "group"])}</div>
+          <div className="col">{this.renderSelect("Group", "group", ["x", "y", "z"], true)}</div>
         </div>
         <div className="row pt-3 pb-3 charts-filters">
           <Aggregations propagateState={state => this.setState(state)} {...this.state} />

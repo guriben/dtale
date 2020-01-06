@@ -15,29 +15,34 @@ import { fetchJson } from "../../fetcher";
 import { toggleBouncer } from "../../toggleUtils";
 import AxisEditor from "./AxisEditor";
 import ChartLabel from "./ChartLabel";
+import Heatmap from "./Heatmap";
 import WordcloudBody from "./WordcloudBody";
 
 function chartType(state) {
   return _.get(state, "chartType.value");
 }
 
-function chartTypes({ y }) {
+function chartTypes({ y, z }) {
   const types = ["line", "bar", "stacked"];
   const yList = _.concat([], y || []);
   if (_.size(yList) < 2) {
     types.push("scatter");
     types.push("pie");
   }
+  if (!_.isNull(z)) {
+    types.push("heatmap");
+  }
   types.push("wordcloud");
   return types;
 }
 
-function createChartCfg(ctx, data, { columns, x, y, additionalOptions, chartType, configHandler }, funcs = {}) {
+function createChartCfg(ctx, data, { columns, x, y, z, additionalOptions, chartType, configHandler }, funcs = {}) {
   let cfg = null;
   const mainProps = {
     columns,
     x: _.get(x, "value"),
     y: _.map(y || [], "value"),
+    z: _.get(z, "value"),
     additionalOptions,
     configHandler,
   };
@@ -73,7 +78,7 @@ function createCharts(data, props, state, funcs = {}) {
     return null;
   }
   const chartTypeVal = chartType(state);
-  if (chartTypeVal === "wordcloud") {
+  if (_.includes(["wordcloud", "heatmap"], chartTypeVal)) {
     return null;
   }
   if (state.chartPerGroup) {
@@ -365,6 +370,8 @@ class ChartsBody extends React.Component {
     let charts = null;
     if (chartType(this.state) === "wordcloud") {
       charts = <WordcloudBody {..._.assignIn({}, this.props, this.state)} />;
+    } else if (chartType(this.state) === "heatmap") {
+      charts = <Heatmap {..._.assignIn({}, this.props, this.state)} />;
     } else if (this.state.chartPerGroup) {
       charts = (
         <div className="row">
@@ -397,6 +404,7 @@ ChartsBody.propTypes = {
   columns: PropTypes.arrayOf(PropTypes.object),
   x: PropTypes.object, // eslint-disable-line react/no-unused-prop-types
   y: PropTypes.arrayOf(PropTypes.object), // eslint-disable-line react/no-unused-prop-types
+  z: PropTypes.object, // eslint-disable-line react/no-unused-prop-types
   group: PropTypes.arrayOf(PropTypes.object), // eslint-disable-line react/no-unused-prop-types
   aggregation: PropTypes.string,
   rollingWindow: PropTypes.string,
